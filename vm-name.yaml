@@ -1,0 +1,11 @@
+
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: gke-playground-commo-tooling-e2-stand-1001f6aa-xinv
+  annotations:
+    crossplane.io/external-name: gke-playground-commo-tooling-e2-stand-1001f6aa-xinv
+spec:
+  managementPolicies: ["Observe"]
+  forProvider:
+    zone: europe-west1-c
