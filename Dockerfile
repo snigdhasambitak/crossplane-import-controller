@@ -18,7 +18,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o app .
 FROM alpine:latest
 
 # Set environment variables
-ENV GCP_PROJECT_ID=""
+ENV GCP_PROJECT_ID="playground-common-cros1"
 ENV PORT="8080"
 
 # Copy the binary built in the previous stage into the container
