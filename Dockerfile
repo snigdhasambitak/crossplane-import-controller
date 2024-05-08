@@ -1,31 +1,44 @@
-# Use the official Golang image to build the application
-FROM golang:1.21.6 AS build
+# Use the official Go image as the base image
+FROM golang:1.21-alpine as builder
 
-# Set the working directory inside the container
+# Set the current working directory inside the container
 WORKDIR /app
 
 # Copy the Go module files and download dependencies
-COPY go.mod go.sum ./
+COPY go.mod ./
 RUN go mod download
 
-# Copy the source code into the container
+# Copy the rest of the application source code
 COPY . .
 
 # Build the Go application
-RUN CGO_ENABLED=0 GOOS=linux go build -o app .
+RUN CGO_ENABLED=0 GOOS=linux go build -o crossplane-import-controller .
 
-# Use a minimal Alpine image as the base image for the final container
-FROM alpine:latest
+# Use a minimal base image to reduce the image size
+FROM google/cloud-sdk:428.0.0-alpine
 
 # Set environment variables
-ENV GCP_PROJECT_ID="playground-common-cros1"
-ENV PORT="8080"
+ENV PORT=8080 \
+    GCP_PROJECT_ID="playground-common-cros1"
 
-# Copy the binary built in the previous stage into the container
-COPY --from=build /app/app /app/app
+# Install gcloud and kubectl
+RUN apk add --update --upgrade  --no-cache \
+    python3 \
+    py3-pip \
+    git \
+    && pip3 install \
+    google-auth \
+    google-api-python-client \
+    && gcloud components install gke-gcloud-auth-plugin \
+    kubectl \
+    && rm -rf google-cloud-sdk/bin/anthoscli \
+    && rm -rf /var/cache/apk/*
 
-# Expose the port on which the application will listen
-EXPOSE 8080
+# Copy the compiled Go binary from the builder stage
+COPY --from=builder /app/crossplane-import-controller /app/crossplane-import-controller
 
-# Command to run the application
-CMD ["/app/app"]
+# Expose the port on which the application will run
+EXPOSE $PORT
+
+# Set the entry point for the container
+ENTRYPOINT ["/app/crossplane-import-controller"]

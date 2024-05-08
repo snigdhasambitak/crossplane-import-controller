@@ -12,6 +12,41 @@ import (
 	"time"
 )
 
+const (
+	configFolder           = "config"
+	instanceTemplateFolder = "instanceTemplates"
+	knownVMsFile           = "known_vms.json"
+)
+
+type KnownVMs struct {
+	VMs map[string]struct{}
+}
+
+func saveKnownVMs(knownVMs KnownVMs) error {
+	data, err := json.Marshal(knownVMs)
+	if err != nil {
+		return fmt.Errorf("error marshalling known VMs: %w", err)
+	}
+	err = ioutil.WriteFile(knownVMsFile, data, 0644)
+	if err != nil {
+		return fmt.Errorf("error writing known VMs to file: %w", err)
+	}
+	return nil
+}
+
+func loadKnownVMs() (KnownVMs, error) {
+	data, err := ioutil.ReadFile(knownVMsFile)
+	if err != nil {
+		return KnownVMs{}, fmt.Errorf("error reading known VMs file: %w", err)
+	}
+	var knownVMs KnownVMs
+	err = json.Unmarshal(data, &knownVMs)
+	if err != nil {
+		return KnownVMs{}, fmt.Errorf("error unmarshalling known VMs: %w", err)
+	}
+	return knownVMs, nil
+}
+
 func getVMNames(projectID string) ([]string, error) {
 	log.Println("Fetching VM names from GCP...")
 	cmd := exec.Command("gcloud", "compute", "instances", "list", "--project", projectID, "--format=json")
@@ -51,7 +86,7 @@ func writeConfigFile(content, filename string) error {
 	return nil
 }
 
-func applyCrossplaneConfig(vmName, configFolder, instanceTemplateFolder string, errCh chan<- error, wg *sync.WaitGroup, doneCh chan<- struct{}) {
+func applyCrossplaneConfig(vmName string, errCh chan<- error, wg *sync.WaitGroup, doneCh chan<- struct{}) {
 	defer wg.Done()
 
 	// Step 1: Read the instance template from instance_template.yaml
@@ -92,11 +127,12 @@ func main() {
 		log.Fatal("GCP_PROJECT_ID environment variable is not set")
 	}
 
-	configFolder := "config"
-	instanceTemplateFolder := "instanceTemplates"
-
-	// Initialize a set to keep track of known VMs
-	knownVMs := make(map[string]struct{})
+	// Load known VMs from file
+	knownVMs, err := loadKnownVMs()
+	if err != nil {
+		log.Println("Error loading known VMs:", err)
+		knownVMs = KnownVMs{VMs: make(map[string]struct{})}
+	}
 
 	// Main loop to continuously monitor for new VMs
 	for {
@@ -109,15 +145,20 @@ func main() {
 
 		// Check for new VMs
 		for _, vmName := range vmNames {
-			if _, ok := knownVMs[vmName]; !ok {
-				knownVMs[vmName] = struct{}{}
-
+			if _, ok := knownVMs.VMs[vmName]; !ok {
+				knownVMs.VMs[vmName] = struct{}{}
+				// Save known VMs to file
+				err := saveKnownVMs(knownVMs)
+				if err != nil {
+					log.Println("Error saving known VMs:", err)
+				}
+				// Apply Crossplane configuration for new VM
 				var wg sync.WaitGroup
 				errCh := make(chan error)
 				doneCh := make(chan struct{})
 
 				wg.Add(1)
-				go applyCrossplaneConfig(vmName, configFolder, instanceTemplateFolder, errCh, &wg, doneCh)
+				go applyCrossplaneConfig(vmName, errCh, &wg, doneCh)
 
 				go func() {
 					wg.Wait()
@@ -136,7 +177,7 @@ func main() {
 		}
 
 		// Check for deleted VMs
-		for knownVM := range knownVMs {
+		for knownVM := range knownVMs.VMs {
 			found := false
 			for _, vmName := range vmNames {
 				if knownVM == vmName {
@@ -146,7 +187,7 @@ func main() {
 			}
 			if !found {
 				// Delete the Crossplane configuration for the deleted VM
-				delete(knownVMs, knownVM)
+				delete(knownVMs.VMs, knownVM)
 				instanceTemplateFilename := fmt.Sprintf("%s/%s.yaml", instanceTemplateFolder, knownVM)
 				cmd := exec.Command("kubectl", "delete", "-f", instanceTemplateFilename)
 				log.Printf("Deleting Crossplane config for VM %s...\n", knownVM)
@@ -155,6 +196,11 @@ func main() {
 					log.Printf("Error deleting Crossplane config for VM %s: %v\n", knownVM, err)
 				} else {
 					log.Printf("Crossplane config for VM %s deleted successfully\n", knownVM)
+					// Save known VMs to file
+					err := saveKnownVMs(knownVMs)
+					if err != nil {
+						log.Println("Error saving known VMs:", err)
+					}
 				}
 			}
 		}
