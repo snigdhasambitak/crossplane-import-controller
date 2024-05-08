@@ -1,0 +1,10 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: <vmName>
+  annotations:
+    crossplane.io/external-name: <vmName>
+spec:
+  managementPolicies: ["Observe"]
+  forProvider:
+    zone: europe-west1-c
