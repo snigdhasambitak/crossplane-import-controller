@@ -135,7 +135,31 @@ func main() {
 			}
 		}
 
+		// Check for deleted VMs
+		for knownVM := range knownVMs {
+			found := false
+			for _, vmName := range vmNames {
+				if knownVM == vmName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				// Delete the Crossplane configuration for the deleted VM
+				delete(knownVMs, knownVM)
+				instanceTemplateFilename := fmt.Sprintf("%s/%s.yaml", instanceTemplateFolder, knownVM)
+				cmd := exec.Command("kubectl", "delete", "-f", instanceTemplateFilename)
+				log.Printf("Deleting Crossplane config for VM %s...\n", knownVM)
+				err := cmd.Run()
+				if err != nil {
+					log.Printf("Error deleting Crossplane config for VM %s: %v\n", knownVM, err)
+				} else {
+					log.Printf("Crossplane config for VM %s deleted successfully\n", knownVM)
+				}
+			}
+		}
+
 		// Sleep for a while before checking for new VMs again
-		time.Sleep(5 * time.Minute) // Adjust the interval as needed
+		time.Sleep(2 * time.Minute) // Adjust the interval as needed
 	}
 }
