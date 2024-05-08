@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 )
 
 func getVMNames(projectID string) ([]string, error) {
@@ -94,33 +95,47 @@ func main() {
 	configFolder := "config"
 	instanceTemplateFolder := "instanceTemplates"
 
-	// Fetch VM names from GCP
-	vmNames, err := getVMNames(projectID)
-	if err != nil {
-		log.Fatal("Error fetching VM names:", err)
-	}
+	// Initialize a set to keep track of known VMs
+	knownVMs := make(map[string]struct{})
 
-	errCh := make(chan error, len(vmNames))
-	doneCh := make(chan struct{}, len(vmNames))
+	// Main loop to continuously monitor for new VMs
+	for {
+		// Fetch VM names from GCP
+		vmNames, err := getVMNames(projectID)
+		if err != nil {
+			log.Println("Error fetching VM names:", err)
+			continue
+		}
 
-	var wg sync.WaitGroup
-	for _, vmName := range vmNames {
-		wg.Add(1)
-		go applyCrossplaneConfig(vmName, configFolder, instanceTemplateFolder, errCh, &wg, doneCh)
-	}
+		// Check for new VMs
+		for _, vmName := range vmNames {
+			if _, ok := knownVMs[vmName]; !ok {
+				knownVMs[vmName] = struct{}{}
 
-	go func() {
-		wg.Wait()
-		close(doneCh)
-	}()
+				var wg sync.WaitGroup
+				errCh := make(chan error)
+				doneCh := make(chan struct{})
 
-	for range vmNames {
-		<-doneCh
-	}
+				wg.Add(1)
+				go applyCrossplaneConfig(vmName, configFolder, instanceTemplateFolder, errCh, &wg, doneCh)
 
-	close(errCh)
+				go func() {
+					wg.Wait()
+					close(doneCh)
+				}()
 
-	for err := range errCh {
-		log.Println(err)
+				go func() {
+					for err := range errCh {
+						log.Println("Error applying Crossplane config:", err)
+					}
+				}()
+
+				<-doneCh
+				close(errCh)
+			}
+		}
+
+		// Sleep for a while before checking for new VMs again
+		time.Sleep(5 * time.Minute) // Adjust the interval as needed
 	}
 }
