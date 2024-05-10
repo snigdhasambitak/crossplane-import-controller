@@ -3,6 +3,7 @@ package template
 import (
 	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/snigdhasambitak/crossplane-import-controller/utils"
@@ -49,6 +50,10 @@ func DeleteCrossplaneConfig(vmName string) error {
 	instanceTemplateFilename := fmt.Sprintf("%s/%s.yaml", instanceTemplateFolder, vmName)
 	if err := utils.DeleteCrossplaneConfig(instanceTemplateFilename); err != nil {
 		return fmt.Errorf("error deleting Crossplane config: %w", err)
+	}
+	// Remove the config file physically
+	if err := os.Remove(instanceTemplateFilename); err != nil {
+		return fmt.Errorf("error deleting config file: %w", err)
 	}
 	log.Printf("Crossplane config for VM %s deleted successfully\n", vmName)
 	return nil

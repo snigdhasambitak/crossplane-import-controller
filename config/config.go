@@ -24,11 +24,18 @@ func NewKnownVMs() *KnownVMs {
 
 // Save saves the known VMs to a file
 func (kv *KnownVMs) Save() error {
-	data, err := json.Marshal(kv)
+	// Create a map to hold the data to be marshalled
+	data := make(map[string]interface{})
+	for vm := range kv.VMs {
+		// Store each VM name as a key with an empty value
+		data[vm] = struct{}{}
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "    ")
 	if err != nil {
 		return fmt.Errorf("error marshalling known VMs: %w", err)
 	}
-	err = ioutil.WriteFile(knownVMsFile, data, 0644)
+	err = ioutil.WriteFile(knownVMsFile, jsonData, 0644)
 	if err != nil {
 		return fmt.Errorf("error writing known VMs to file: %w", err)
 	}
@@ -50,12 +57,20 @@ func LoadKnownVMs() (*KnownVMs, error) {
 		return NewKnownVMs(), nil
 	}
 
-	var knownVMs KnownVMs
-	err = json.Unmarshal(data, &knownVMs)
+	// Create a map to hold the unmarshalled data
+	var jsonData map[string]interface{}
+	err = json.Unmarshal(data, &jsonData)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling known VMs: %w", err)
 	}
-	return &knownVMs, nil
+
+	// Extract VM names from the map
+	knownVMs := NewKnownVMs()
+	for vm := range jsonData {
+		knownVMs.Add(vm)
+	}
+
+	return knownVMs, nil
 }
 
 // Add adds a new VM to the known VMs

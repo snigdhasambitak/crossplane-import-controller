@@ -41,6 +41,8 @@ func main() {
 			continue
 		}
 
+		log.Println("Fetched VM names:", vmNames)
+
 		// Check for new VMs
 		for _, vmName := range vmNames {
 			if knownVMs.Add(vmName) {
@@ -69,6 +71,7 @@ func main() {
 		}
 
 		// Check for deleted VMs
+		deletedVMs := make(map[string]bool) // Map to store deleted VMs
 		for knownVM := range knownVMs.Get() {
 			found := false
 			for _, vmName := range vmNames {
@@ -78,20 +81,28 @@ func main() {
 				}
 			}
 			if !found {
-				// Delete the Crossplane configuration for the deleted VM
-				knownVMs.Remove(knownVM)
-				if err := template.DeleteCrossplaneConfig(knownVM); err != nil { // Change here
-					log.Printf("Error deleting Crossplane config for VM %s: %v\n", knownVM, err)
-				} else {
-					log.Printf("Crossplane config for VM %s deleted successfully\n", knownVM)
-					// Save known VMs to file
-					if err := knownVMs.Save(); err != nil {
-						log.Println("Error saving known VMs:", err)
-					}
+				// Add the deleted VM to the map
+				deletedVMs[knownVM] = true
+			}
+		}
+
+		log.Println("Deleted VMs:", deletedVMs)
+
+		// Remove deleted VMs
+		for deletedVM := range deletedVMs {
+			// Delete the Crossplane configuration for the deleted VM
+			knownVMs.Remove(deletedVM)
+			if err := template.DeleteCrossplaneConfig(deletedVM); err != nil {
+				log.Printf("Error deleting Crossplane config for VM %s: %v\n", deletedVM, err)
+			} else {
+				// Save known VMs to file
+				if err := knownVMs.Save(); err != nil {
+					log.Println("Error saving known VMs:", err)
 				}
 			}
 		}
+
 		// Sleep for a while before checking for new VMs again
-		time.Sleep(2 * time.Minute) // Adjust the interval as needed
+		time.Sleep(1 * time.Minute) // Adjust the interval as needed
 	}
 }
