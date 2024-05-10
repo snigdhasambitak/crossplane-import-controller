@@ -1,9 +1,9 @@
 apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Instance
 metadata:
-  name: instance-20240508-224320
+  name: instance-20240510-132920
   annotations:
-    crossplane.io/external-name: instance-20240508-224320
+    crossplane.io/external-name: instance-20240510-132920
 spec:
   managementPolicies: ["Observe"]
   forProvider:

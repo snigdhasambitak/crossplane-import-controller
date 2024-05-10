@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 # Build the Go application
-RUN CGO_ENABLED=0 GOOS=linux go build -o crossplane-import-controller .
+RUN CGO_ENABLED=0 GOOS=linux go build -o template-import-controller .
 
 # Use a minimal base image to reduce the image size
 FROM google/cloud-sdk:428.0.0-alpine
