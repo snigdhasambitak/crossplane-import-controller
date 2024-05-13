@@ -1,6 +1,0 @@
-apiVersion: pkg.template.io/v1
-kind: Provider
-metadata:
-  name: provider-gcp-compute
-spec:
-  package: xpkg.upbound.io/upbound/provider-gcp-compute:v1.1.0

@@ -1,9 +1,9 @@
 apiVersion: storage.gcp.upbound.io/v1beta1
 kind: Bucket
 metadata:
-  generateName: template-bucket-test1
-  labels:
-    docs.crossplane.io/example: provider-gcp
+  name: <bucketName>
+  annotations:
+    crossplane.io/external-name: <bucketName>
 spec:
   forProvider:
     location: EU
